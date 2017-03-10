@@ -1,10 +1,83 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <beans xmlns="http://www.springframework.org/schema/beans"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://www.springframework.org/schema/beans
-	http://www.springframework.org/schema/beans/spring-beans-2.5.xsd">
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:aop="http://www.springframework.org/schema/aop" xmlns:tx="http://www.springframework.org/schema/tx"
+	xsi:schemaLocation="
+http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-3.0.xsd
+http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-3.0.xsd
+http://www.springframework.org/schema/tx http://www.springframework.org/schema/tx/spring-tx-3.0.xsd
+http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-3.0.xsd">
 
-	<import resource="Spring-Datasource.xml" />
-	<import resource="Spring-Customer.xml" />
+	<bean id="dataSource1" class="bitronix.tm.resource.jdbc.PoolingDataSource"
+		init-method="init" destroy-method="close">
+		<property name="uniqueName" value="xaDataSource1" />
+		<property name="minPoolSize" value="1" />
+		<property name="maxPoolSize" value="4" />
+		<property name="testQuery" value="SELECT 1 FROM dual" />
+		<property name="driverProperties">
+			<props>
+				<prop key="URL">jdbc:oracle:thin:@localhost:1521:xe</prop>
+				<prop key="user">TESTUSER01</prop>
+				<prop key="password">testpass</prop>
+			</props>
+		</property>
+		<property name="className" value="oracle.jdbc.xa.client.OracleXADataSource" />
+		<property name="allowLocalTransactions" value="true" />
+	</bean>
+
+	<bean id="dataSource2" class="bitronix.tm.resource.jdbc.PoolingDataSource"
+		init-method="init" destroy-method="close">
+		<property name="uniqueName" value="xaDataSource2" />
+		<property name="minPoolSize" value="1" />
+		<property name="maxPoolSize" value="4" />
+		<property name="testQuery" value="SELECT 1 FROM dual" />
+		<property name="driverProperties">
+			<props>
+				<prop key="URL">jdbc:oracle:thin:@localhost:1521:xe</prop>
+				<prop key="user">TESTUSER01</prop>
+				<prop key="password">testpass</prop>
+			</props>
+		</property>
+		<property name="className" value="oracle.jdbc.xa.client.OracleXADataSource" />
+		<property name="allowLocalTransactions" value="true" />
+	</bean>
+
+	<bean id="jdbcTemplate1" class="org.springframework.jdbc.core.JdbcTemplate">
+		<property name="dataSource" ref="dataSource1" />
+	</bean>
+
+	<bean id="jdbcTemplate2" class="org.springframework.jdbc.core.JdbcTemplate">
+		<property name="dataSource" ref="dataSource2" />
+	</bean>
+
+	<bean id="customerDAO1" class="com.perf.spring.dao.impl.CustomerDAOImpl">
+		<property name="jdbcTemplate" ref="jdbcTemplate1" />
+	</bean>
+
+	<bean id="customerDAO2" class="com.perf.spring.dao.impl.CustomerDAOImpl">
+		<property name="jdbcTemplate" ref="jdbcTemplate2" />
+	</bean>
+
+	<bean id="bitronixTMConfig" factory-method="getConfiguration"
+		class="bitronix.tm.TransactionManagerServices">
+		<!--Disabling Jmx avoids registering JMX Beans to any container -->
+		<property name="disableJmx" value="true" />
+		<property name="serverId" value="transaction-poc"></property>
+	</bean>
+
+	<bean id="bitronixTM" factory-method="getTransactionManager"
+		class="bitronix.tm.TransactionManagerServices" depends-on="bitronixTMConfig"
+		destroy-method="shutdown" />
+
+	<bean id="txManager"
+		class="org.springframework.transaction.jta.JtaTransactionManager">
+		<property name="transactionManager" ref="bitronixTM" />
+		<property name="userTransaction" ref="bitronixTM" />
+		<property name="allowCustomIsolationLevels" value="true" />
+	</bean>
+
+	<tx:annotation-driven transaction-manager="txManager" />
+
+	<context:component-scan base-package="com.perf.spring" />
 
 </beans>
